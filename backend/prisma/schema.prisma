@@ -1,0 +1,462 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  password_hash String
+  display_name  String?
+  avatar_url    String?
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @updatedAt
+  refresh_tokens      RefreshToken[]
+  recovery_codes      RecoveryCode[]
+  group_members       GroupMember[]
+  leave_requests      LeaveRequest[]
+  groups_created      Group[]
+  invitations_created Invitation[]
+  expenses_paid       Expense[]       @relation("ExpensePaidBy")
+  expenses_created    Expense[]       @relation("ExpenseCreatedBy")
+  expense_splits      ExpenseSplit[]
+  settlements_from    Settlement[]    @relation("SettlementFrom")
+  settlements_to      Settlement[]    @relation("SettlementTo")
+  settlements_recorded Settlement[]   @relation("SettlementRecorded")
+  fund_campaigns_created FundCampaign[]
+  fund_contributions FundContribution[]
+  fund_payments_confirmed FundContributionPayment[] @relation("FundPaymentConfirmedBy")
+  fund_qr_codes FundQrCode[]
+  fund_spendings FundSpending[]
+  notifications Notification[]
+  messages_sent Message[] @relation("MessageSender")
+  messages_pinned Message[] @relation("MessagePinnedBy")
+  message_reads MessageRead[]
+  chat_participants ChatParticipant[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid())
+  user_id     String
+  token_hash  String    @unique
+  expires_at  DateTime
+  revoked_at  DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("refresh_tokens")
+}
+
+model RecoveryCode {
+  id            String    @id @default(uuid())
+  user_id       String
+  code_hash     String
+  code_preview  String?
+  display_order Int
+  used_at       DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@unique([user_id, display_order])
+  @@map("recovery_codes")
+}
+
+model Group {
+  id            String         @id @default(uuid())
+  name          String
+  description   String?
+  currency      String         @default("VND")
+  status        GroupStatus    @default(active)
+  deleted_at    DateTime?
+  created_by    String
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  creator       User           @relation(fields: [created_by], references: [id])
+  members       GroupMember[]
+  invitations   Invitation[]
+  expenses      Expense[]
+  settlements   Settlement[]
+  leave_requests LeaveRequest[]
+  fund_campaigns FundCampaign[]
+  fund_qr_codes FundQrCode[]
+  fund_spendings FundSpending[]
+  notifications Notification[]
+  messages Message[]
+  chat_participants ChatParticipant[]
+
+  @@index([created_by])
+  @@map("groups")
+}
+
+model GroupMember {
+  id            String            @id @default(uuid())
+  group_id      String
+  user_id       String
+  role          GroupMemberRole   @default(member)
+  status        GroupMemberStatus @default(active)
+  animal_avatar String?
+  settlement_bank_id        String?
+  settlement_bank_name      String?
+  settlement_account_number String?
+  settlement_account_name   String?
+  joined_at     DateTime          @default(now())
+  left_at       DateTime?
+  created_at    DateTime          @default(now())
+  updated_at    DateTime          @updatedAt
+  group         Group             @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user          User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, user_id])
+  @@index([user_id])
+  @@index([group_id, role, status])
+  @@map("group_members")
+}
+
+model Invitation {
+  id          String           @id @default(uuid())
+  group_id    String
+  token       String           @unique
+  created_by  String
+  expires_at  DateTime?
+  max_uses    Int?
+  use_count   Int              @default(0)
+  status      InvitationStatus @default(active)
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+  group       Group            @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  creator     User             @relation(fields: [created_by], references: [id])
+
+  @@index([group_id, status])
+  @@map("invitations")
+}
+
+model LeaveRequest {
+  id                 String             @id @default(uuid())
+  group_id           String
+  user_id            String
+  status             LeaveRequestStatus @default(pending)
+  transfer_leader_to String?
+  reason             String?
+  processed_at       DateTime?
+  created_at         DateTime           @default(now())
+  updated_at         DateTime           @updatedAt
+  group              Group              @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user               User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([group_id, status])
+  @@index([user_id])
+  @@map("leave_requests")
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  group_id    String
+  title       String
+  amount      Decimal         @db.Decimal(15, 2)
+  paid_by     String
+  category    ExpenseCategory
+  date        DateTime        @db.Date
+  note        String?
+  receipt_url String?
+  created_by  String
+  created_at  DateTime        @default(now())
+  group       Group           @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  payer       User            @relation("ExpensePaidBy", fields: [paid_by], references: [id])
+  creator     User            @relation("ExpenseCreatedBy", fields: [created_by], references: [id])
+  splits      ExpenseSplit[]
+
+  @@index([group_id])
+  @@index([group_id, date])
+  @@map("expenses")
+}
+
+model ExpenseSplit {
+  id         String  @id @default(uuid())
+  expense_id String
+  user_id    String
+  amount     Decimal @db.Decimal(15, 2)
+  expense    Expense @relation(fields: [expense_id], references: [id], onDelete: Cascade)
+  user       User    @relation(fields: [user_id], references: [id])
+
+  @@index([expense_id])
+  @@map("expense_splits")
+}
+
+model Settlement {
+  id          String   @id @default(uuid())
+  group_id    String
+  from_user   String
+  to_user     String
+  amount      Decimal  @db.Decimal(15, 2)
+  note        String?
+  settled_at  DateTime @default(now())
+  recorded_by String
+  group       Group    @relation(fields: [group_id], references: [id])
+  from        User     @relation("SettlementFrom", fields: [from_user], references: [id])
+  to          User     @relation("SettlementTo", fields: [to_user], references: [id])
+  recorder    User     @relation("SettlementRecorded", fields: [recorded_by], references: [id])
+
+  @@index([group_id])
+  @@map("settlements")
+}
+
+model FundCampaign {
+  id                           String             @id @default(uuid())
+  group_id                     String
+  title                        String
+  description                  String?
+  amount_per_person            Decimal            @db.Decimal(15, 2)
+  payment_frequency            PaymentFrequency
+  suggested_amount_per_payment Decimal            @db.Decimal(15, 2)
+  due_date                     DateTime           @db.Date
+  status                       CampaignStatus     @default(active)
+  created_by                   String
+  campaign_code                String             @unique
+  created_at                   DateTime           @default(now())
+  group                        Group              @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  creator                      User               @relation(fields: [created_by], references: [id])
+  contributions                FundContribution[]
+
+  @@index([group_id])
+  @@index([group_id, status])
+  @@map("fund_campaigns")
+}
+
+model FundContribution {
+  id              String             @id @default(uuid())
+  campaign_id     String
+  user_id         String
+  transfer_code   String             @unique
+  amount_required Decimal            @db.Decimal(15, 2)
+  amount_paid     Decimal            @db.Decimal(15, 2) @default(0)
+  status          ContributionStatus @default(pending)
+  fully_paid_at   DateTime?
+  campaign        FundCampaign       @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  user            User               @relation(fields: [user_id], references: [id])
+  payments        FundContributionPayment[]
+
+  @@unique([campaign_id, user_id])
+  @@index([campaign_id])
+  @@map("fund_contributions")
+}
+
+model FundContributionPayment {
+  id                   String           @id @default(uuid())
+  contribution_id      String
+  amount               Decimal          @db.Decimal(15, 2)
+  paid_at              DateTime         @default(now())
+  method               PaymentMethod
+  transaction_ref      String?          @unique
+  sepay_transaction_id String?          @unique
+  confirmed_by         String?
+  note                 String?
+  contribution         FundContribution @relation(fields: [contribution_id], references: [id], onDelete: Cascade)
+  confirmer            User?            @relation("FundPaymentConfirmedBy", fields: [confirmed_by], references: [id])
+
+  @@index([contribution_id])
+  @@index([transaction_ref])
+  @@map("fund_contribution_payments")
+}
+
+model FundQrCode {
+  id                String   @id @default(uuid())
+  group_id          String
+  uploaded_by       String
+  bank_id           String
+  bank_name         String
+  account_number    String
+  account_name      String?
+  webhook_config_id String?  @unique
+  webhook_secret    String?
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+  group             Group    @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  uploader          User     @relation(fields: [uploaded_by], references: [id])
+
+  @@index([group_id, is_active])
+  @@map("fund_qr_codes")
+}
+
+model FundSpending {
+  id          String   @id @default(uuid())
+  group_id    String
+  title       String
+  amount      Decimal  @db.Decimal(15, 2)
+  spent_at    DateTime @db.Date
+  note        String?
+  receipt_url String?
+  recorded_by String
+  created_at  DateTime @default(now())
+  group       Group    @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  recorder    User     @relation(fields: [recorded_by], references: [id])
+
+  @@index([group_id])
+  @@map("fund_spendings")
+}
+
+model Message {
+  id         String      @id @default(uuid())
+  group_id   String
+  sender_id  String?
+  content    String
+  type       MessageType @default(text)
+  is_pinned  Boolean     @default(false)
+  pinned_by  String?
+  created_at DateTime    @default(now())
+  edited_at  DateTime?
+  is_deleted Boolean     @default(false)
+  group      Group       @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  sender     User?       @relation("MessageSender", fields: [sender_id], references: [id])
+  pinner     User?       @relation("MessagePinnedBy", fields: [pinned_by], references: [id])
+  reads      MessageRead[]
+
+  @@index([group_id, created_at(sort: Desc)])
+  @@index([group_id, is_pinned])
+  @@map("messages")
+}
+
+model MessageRead {
+  id         String   @id @default(uuid())
+  message_id String
+  user_id    String
+  read_at    DateTime @default(now())
+  message    Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([message_id, user_id])
+  @@map("message_reads")
+}
+
+model ChatParticipant {
+  id         String                @id @default(uuid())
+  group_id   String
+  user_id    String
+  status     ChatParticipantStatus @default(active)
+  is_muted   Boolean               @default(false)
+  joined_at  DateTime              @default(now())
+  left_at    DateTime?
+  updated_at DateTime              @updatedAt
+  group      Group                 @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user       User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, user_id])
+  @@index([user_id, status])
+  @@index([group_id, status])
+  @@map("chat_participants")
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  user_id    String
+  group_id   String?
+  type       NotificationType
+  title      String
+  body       String
+  is_read    Boolean          @default(false)
+  created_at DateTime         @default(now())
+  user       User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  group      Group?           @relation(fields: [group_id], references: [id])
+
+  @@index([user_id, is_read])
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("notifications")
+}
+
+enum GroupStatus {
+  active
+  deleted
+}
+
+enum GroupMemberRole {
+  leader
+  secretary
+  member
+}
+
+enum GroupMemberStatus {
+  active
+  left
+  kicked
+}
+
+enum InvitationStatus {
+  active
+  expired
+  revoked
+}
+
+enum ExpenseCategory {
+  food
+  transport
+  accommodation
+  entertainment
+  shopping
+  other
+}
+
+enum PaymentFrequency {
+  one_time
+  weekly
+  biweekly
+  monthly
+}
+
+enum CampaignStatus {
+  active
+  closed
+  cancelled
+}
+
+enum ContributionStatus {
+  pending
+  paid
+  late
+  kicked
+}
+
+enum PaymentMethod {
+  auto
+  manual
+}
+
+enum NotificationType {
+  expense_added
+  fund_reminder
+  fund_paid
+  fund_late
+  fund_complete
+  settlement_suggested
+  member_joined
+  member_left
+  campaign_created
+  leave_request
+  leave_approved
+  leave_rejected
+  overpayment_alert
+}
+
+enum MessageType {
+  text
+  system
+}
+
+enum ChatParticipantStatus {
+  active
+  left
+}
+
+enum LeaveRequestStatus {
+  pending
+  approved
+  rejected
+}
