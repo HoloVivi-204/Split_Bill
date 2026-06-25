@@ -8,7 +8,7 @@ coverage/
 
 *.log
 *.tmp
-*.lock
+migration_lock.toml
 
 .DS_Store
 Thumbs.db
