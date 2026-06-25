@@ -8,19 +8,15 @@ import {
   deleteGroup,
   listGroups,
   listInvitations,
-} from '../../api/groups';
+} from '../../api/group-core';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { KpiTile } from '../../components/common/KpiTile';
 import { PageContainer } from '../../components/common/PageContainer';
 import { SurfaceCard } from '../../components/common/SurfaceCard';
+import { getRoleLabel } from '../../constants/groupRoles';
+import { getApiErrorMessage } from '../../utils/apiError';
 import { formatCurrency } from '../../utils/formatCurrency';
-
-const roleLabels = {
-  leader: 'Trưởng nhóm',
-  secretary: 'Thư ký',
-  member: 'Thành viên',
-};
 
 function getInvitationToken(value) {
   const trimmedValue = value.trim();
@@ -275,8 +271,7 @@ export function GroupsPage() {
       });
       toast.success(data.message ?? 'Nhóm đã được xóa thành công.');
     } catch (error) {
-      const message =
-        error.response?.data?.error?.message ?? 'Không thể xử lý yêu cầu xóa nhóm lúc này.';
+      const message = getApiErrorMessage(error, 'Không thể xử lý yêu cầu xóa nhóm lúc này.');
       toast.error(message);
     } finally {
       setDeletingGroupId('');
@@ -350,7 +345,7 @@ export function GroupsPage() {
                       </p>
                     </div>
                     <span className="rounded-full border border-[#d1fadf] bg-[#f7fdf9] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#0b7443]">
-                      {roleLabels[group.my_role] ?? group.my_role}
+                      {getRoleLabel(group.my_role)}
                     </span>
                   </div>
 

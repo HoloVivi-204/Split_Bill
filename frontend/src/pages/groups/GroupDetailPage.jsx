@@ -2,19 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
-import { deleteInvitation, getGroupDetail, listGroupMembers, listInvitations } from '../../api/groups';
+import { deleteInvitation, getGroupDetail, listGroupMembers, listInvitations } from '../../api/group-core';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { KpiTile } from '../../components/common/KpiTile';
 import { PageContainer } from '../../components/common/PageContainer';
 import { SurfaceCard } from '../../components/common/SurfaceCard';
 import { UserAvatar } from '../../components/common/UserAvatar';
-
-const roleLabels = {
-  leader: 'Trưởng nhóm',
-  secretary: 'Thư ký',
-  member: 'Thành viên',
-};
+import { getRoleLabel } from '../../constants/groupRoles';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 function formatInvitationMeta(invitation) {
   const usageText = invitation.max_uses
@@ -76,7 +72,7 @@ export function GroupDetailPage() {
         setInvitations(invitationsData);
       } catch (error) {
         if (!cancelled) {
-          const message = error.response?.data?.error?.message ?? 'Không tải được tổng quan nhóm.';
+          const message = getApiErrorMessage(error, 'Không tải được tổng quan nhóm.');
           setLoadError(message);
         }
       } finally {
@@ -188,7 +184,7 @@ export function GroupDetailPage() {
             <KpiTile
               label="QR quỹ"
               value={group?.has_qr ? 'Đã bật' : 'Chưa bật'}
-              hint={`Vai trò của bạn: ${roleLabels[group?.my_role] ?? 'Thành viên'}`}
+              hint={`Vai trò của bạn: ${getRoleLabel(group?.my_role) ?? 'Thành viên'}`}
             />
           </div>
 
@@ -226,7 +222,7 @@ export function GroupDetailPage() {
                       <div className="flex items-center justify-between gap-4">
                         <dt>Vai trò của bạn</dt>
                         <dd className="font-semibold text-slate-900">
-                          {roleLabels[group?.my_role] ?? 'Thành viên'}
+                          {getRoleLabel(group?.my_role) ?? 'Thành viên'}
                         </dd>
                       </div>
                       <div className="flex items-center justify-between gap-4">
@@ -265,7 +261,7 @@ export function GroupDetailPage() {
                               {member.display_name || member.user_id}
                             </p>
                             <p className="text-sm text-slate-600">
-                              {roleLabels[member.role] ?? member.role}
+                              {getRoleLabel(member.role)}
                             </p>
                           </div>
                         </div>

@@ -3,16 +3,19 @@ import { Link, useParams } from 'react-router-dom';
 
 import {
   getGroupDetail,
+} from '../../api/group-core';
+import {
   getGroupStats,
   getGroupStatsByCategory,
   getGroupStatsByMember,
   getGroupStatsTimeline,
-} from '../../api/groups';
+} from '../../api/stats';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { KpiTile } from '../../components/common/KpiTile';
 import { PageContainer } from '../../components/common/PageContainer';
 import { SurfaceCard } from '../../components/common/SurfaceCard';
+import { getApiErrorMessage } from '../../utils/apiError';
 import { formatCurrency } from '../../utils/formatCurrency';
 
 const periodOptions = [
@@ -64,7 +67,7 @@ export function GroupStatsPage() {
         setTimeline(timelineData);
       } catch (error) {
         if (!cancelled) {
-          setLoadError(error.response?.data?.error?.message ?? 'Không thể tải thống kê nhóm.');
+          setLoadError(getApiErrorMessage(error, 'Không thể tải thống kê nhóm.'));
         }
       } finally {
         if (!cancelled) {

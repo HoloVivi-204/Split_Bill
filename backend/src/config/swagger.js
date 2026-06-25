@@ -1,62 +1,12 @@
 const swaggerUi = require("swagger-ui-express");
+const { components, info, servers, tags } = require("./swaggerMeta");
 
 const swaggerDocument = {
   openapi: "3.0.3",
-  info: {
-    title: "SplitBill Backend API",
-    version: "0.1.0",
-    description: "In-repo Swagger stub for the current SplitBill backend surface. Use API.md as the canonical contract source of truth."
-  },
-  servers: [
-    {
-      url: "/api"
-    }
-  ],
-  tags: [
-    { name: "Health" },
-    { name: "Auth" },
-    { name: "Groups" },
-    { name: "Invitations" },
-    { name: "Expenses" },
-    { name: "Banks" },
-    { name: "Fund" },
-    { name: "Chat" },
-    { name: "Notifications" },
-    { name: "Stats" },
-    { name: "Webhooks" }
-  ],
-  components: {
-    securitySchemes: {
-      bearerAuth: {
-        type: "http",
-        scheme: "bearer",
-        bearerFormat: "JWT"
-      }
-    },
-    schemas: {
-      SuccessEnvelope: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: { type: "object" }
-        }
-      },
-      ErrorEnvelope: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: false },
-          error: {
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-              request_id: { type: "string" }
-            }
-          }
-        }
-      }
-    }
-  },
+  info,
+  servers,
+  tags,
+  components,
   paths: {
     "/auth/register": {
       post: {

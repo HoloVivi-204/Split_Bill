@@ -4,274 +4,55 @@ import { Link, useParams } from 'react-router-dom';
 
 import {
   createExpense,
-  createSettlement,
-  deleteMySettlementBankInfo,
   deleteExpense,
   getExpenseDetail,
-  getGroupBalances,
+  listExpenses,
+  updateExpense,
+} from '../../api/expenses';
+import { listBanks } from '../../api/banks';
+import {
   getGroupDetail,
+  listGroupMembers,
+} from '../../api/group-core';
+import {
+  createSettlement,
+  deleteMySettlementBankInfo,
+  getGroupBalances,
   getMySettlementBankInfo,
   getSettlementSuggestions,
-  listBanks,
-  listExpenses,
-  listGroupMembers,
   listSettlements,
   updateMySettlementBankInfo,
-  updateExpense,
-} from '../../api/groups';
+} from '../../api/settlements';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { KpiTile } from '../../components/common/KpiTile';
 import { PageContainer } from '../../components/common/PageContainer';
 import { SurfaceCard } from '../../components/common/SurfaceCard';
-import { UserAvatar } from '../../components/common/UserAvatar';
 import { useAuthStore } from '../../stores/authStore';
+import { getApiErrorMessage } from '../../utils/apiError';
 import { formatCurrency } from '../../utils/formatCurrency';
-
-const categories = [
-  { value: 'food', label: 'Ăn uống' },
-  { value: 'transport', label: 'Di chuyển' },
-  { value: 'accommodation', label: 'Lưu trú' },
-  { value: 'entertainment', label: 'Giải trí' },
-  { value: 'shopping', label: 'Mua sắm' },
-  { value: 'other', label: 'Khác' },
-];
-
-const splitTypeLabels = {
-  equal: 'Chia đều',
-  custom: 'Chia tùy chỉnh',
-  percentage: 'Chia theo %',
-};
-
-function todayValue() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function buildInitialExpenseForm() {
-  return {
-    title: '',
-    amount: '',
-    paidBy: '',
-    category: 'food',
-    date: todayValue(),
-    note: '',
-    splitType: 'equal',
-    receipt: null,
-    splits: [],
-  };
-}
-
-function buildInitialSettlementForm() {
-  return {
-    fromUser: '',
-    toUser: '',
-    amount: '',
-    note: '',
-  };
-}
-
-function buildInitialSettlementBankInfoForm(bankInfo = null) {
-  return {
-    bankId: bankInfo?.bank_id ?? '',
-    bankName: bankInfo?.bank_name ?? '',
-    accountNumber: bankInfo?.account_number ?? '',
-  };
-}
+import { GroupExpenseList } from './GroupExpenseList';
+import { GroupFinanceSidebar } from './GroupFinanceSidebar';
+import {
+  buildExpensePayload,
+  buildInitialExpenseForm,
+  buildInitialSettlementBankInfoForm,
+  buildInitialSettlementForm,
+  buildParticipantSummary,
+  buildSplitDraft,
+  categories,
+  getDefaultPayerId,
+  getMemberDisplayName,
+  getSplitValidation,
+  inferSplitType,
+  splitTypeLabels,
+  syncSplitsToSelection,
+} from './financeForm';
 
 function formatDate(value) {
   return new Intl.DateTimeFormat('vi-VN', {
     dateStyle: 'medium',
   }).format(new Date(value));
-}
-
-function inferSplitType(expense) {
-  if (!expense.splits?.length) {
-    return 'equal';
-  }
-
-  const equalAmount = expense.amount / expense.splits.length;
-  const allNearEqual = expense.splits.every(
-    (split) => Math.abs(split.amount - equalAmount) <= 1,
-  );
-
-  return allNearEqual ? 'equal' : 'custom';
-}
-
-function getMemberDisplayName(member) {
-  return member.display_name || member.user_id;
-}
-
-function getDefaultPayerId(activeMembers, currentUserId) {
-  if (activeMembers.some((member) => member.user_id === currentUserId)) {
-    return currentUserId;
-  }
-
-  return activeMembers[0]?.user_id || '';
-}
-
-function buildSplitDraft(members, expense) {
-  const activeMembers = members.filter((member) => member.status === 'active');
-  const existingSplits = new Map(
-    (expense?.splits ?? []).map((split) => [split.user_id, split]),
-  );
-  const draftMembers = existingSplits.size > 0
-    ? activeMembers.filter((member) => existingSplits.has(member.user_id))
-    : activeMembers;
-
-  return draftMembers.map((member) => {
-    const existingSplit = existingSplits.get(member.user_id);
-
-    return {
-      user_id: member.user_id,
-      display_name: getMemberDisplayName(member),
-      amount: existingSplit?.amount?.toString() ?? '',
-      percentage: '',
-    };
-  });
-}
-
-function syncSplitsToSelection(activeMembers, currentSplits, selectedUserIds) {
-  const currentSplitMap = new Map(currentSplits.map((split) => [split.user_id, split]));
-
-  return activeMembers
-    .filter((member) => selectedUserIds.has(member.user_id))
-    .map((member) => {
-      const currentSplit = currentSplitMap.get(member.user_id);
-
-      return {
-        user_id: member.user_id,
-        display_name: getMemberDisplayName(member),
-        amount: currentSplit?.amount ?? '',
-        percentage: currentSplit?.percentage ?? '',
-      };
-    });
-}
-
-function formatPercentageDelta(value) {
-  const normalizedValue = Math.round((value + Number.EPSILON) * 100) / 100;
-
-  return `${normalizedValue}%`;
-}
-
-function getSplitValidation(formState) {
-  const amount = Number(formState.amount);
-
-  if (!amount || amount <= 0) {
-    return { isValid: false, message: 'Nhập số tiền lớn hơn 0' };
-  }
-
-  if (formState.splits.length === 0) {
-    return { isValid: false, message: 'Chọn ít nhất một thành viên chia tiền' };
-  }
-
-  if (!formState.splits.some((split) => split.user_id === formState.paidBy)) {
-    return { isValid: false, message: 'Người thanh toán phải tham gia chia tiền' };
-  }
-
-  if (formState.splitType === 'custom') {
-    const totalAmount = formState.splits.reduce(
-      (sum, split) => sum + Number(split.amount || 0),
-      0,
-    );
-    const delta = amount - totalAmount;
-
-    if (Math.abs(delta) > 1) {
-      return {
-        isValid: false,
-        message: delta > 0
-          ? `Còn thiếu ${formatCurrency(delta)}`
-          : `Đang dư ${formatCurrency(Math.abs(delta))}`,
-      };
-    }
-  }
-
-  if (formState.splitType === 'percentage') {
-    const totalPercentage = formState.splits.reduce(
-      (sum, split) => sum + Number(split.percentage || 0),
-      0,
-    );
-    const delta = 100 - totalPercentage;
-
-    if (Math.abs(delta) > 0.01) {
-      return {
-        isValid: false,
-        message: delta > 0
-          ? `Còn thiếu ${formatPercentageDelta(delta)}`
-          : `Đang dư ${formatPercentageDelta(Math.abs(delta))}`,
-      };
-    }
-  }
-
-  return { isValid: true, message: '' };
-}
-
-function buildParticipantSummary(splits) {
-  if (!splits?.length) {
-    return '';
-  }
-
-  return splits
-    .map((split) => split.display_name || split.user_id)
-    .join(', ');
-}
-
-function buildExpensePayload(formState, { includePaidBy = true } = {}) {
-  const amount = Number(formState.amount);
-  const payload = {
-    title: formState.title.trim(),
-    amount,
-    category: formState.category,
-    date: formState.date,
-    split_type: formState.splitType,
-    note: formState.note.trim(),
-  };
-
-  if (includePaidBy) {
-    payload.paid_by = formState.paidBy;
-  }
-
-  if (formState.splitType === 'equal') {
-    payload.splits = formState.splits.map((split) => ({
-      user_id: split.user_id,
-    }));
-  }
-
-  if (formState.splitType === 'custom') {
-    payload.splits = formState.splits.map((split) => ({
-      user_id: split.user_id,
-      amount: Number(split.amount),
-    }));
-  }
-
-  if (formState.splitType === 'percentage') {
-    payload.splits = formState.splits.map((split) => ({
-      user_id: split.user_id,
-      percentage: Number(split.percentage),
-    }));
-  }
-
-  if (!formState.receipt) {
-    return payload;
-  }
-
-  const formData = new FormData();
-  formData.append('title', payload.title);
-  formData.append('amount', String(payload.amount));
-  if (payload.paid_by) {
-    formData.append('paid_by', payload.paid_by);
-  }
-  formData.append('category', payload.category);
-  formData.append('date', payload.date);
-  formData.append('split_type', payload.split_type);
-  if (payload.note) {
-    formData.append('note', payload.note);
-  }
-  if (payload.splits) {
-    formData.append('splits', JSON.stringify(payload.splits));
-  }
-  formData.append('receipt', formState.receipt);
-
-  return formData;
 }
 
 export function GroupFinancePage() {
@@ -400,7 +181,7 @@ export function GroupFinancePage() {
         await loadFinanceWorkspace();
       } catch (error) {
         if (!cancelled) {
-          setLoadError(error.response?.data?.error?.message ?? 'Không tải được dữ liệu tài chính.');
+          setLoadError(getApiErrorMessage(error, 'Không tải được dữ liệu tài chính.'));
         }
       } finally {
         if (!cancelled) {
@@ -453,7 +234,7 @@ export function GroupFinancePage() {
       await loadFinanceWorkspace();
       resetExpenseForm();
     } catch (error) {
-      toast.error(error.response?.data?.error?.message ?? 'Không lưu được khoản chi.');
+      toast.error(getApiErrorMessage(error, 'Không lưu được khoản chi.'));
     } finally {
       setIsSavingExpense(false);
     }
@@ -482,7 +263,7 @@ export function GroupFinancePage() {
       });
       expenseTitleInputRef.current?.focus();
     } catch (error) {
-      toast.error(error.response?.data?.error?.message ?? 'Không tải được chi tiết khoản chi.');
+      toast.error(getApiErrorMessage(error, 'Không tải được chi tiết khoản chi.'));
     }
   }
 
@@ -526,7 +307,7 @@ export function GroupFinancePage() {
         resetExpenseForm();
       }
     } catch (error) {
-      toast.error(error.response?.data?.error?.message ?? 'Không xóa được khoản chi.');
+      toast.error(getApiErrorMessage(error, 'Không xóa được khoản chi.'));
     }
   }
 
@@ -550,7 +331,7 @@ export function GroupFinancePage() {
       await loadFinanceWorkspace();
       setSettlementFormState(buildInitialSettlementForm());
     } catch (error) {
-      toast.error(error.response?.data?.error?.message ?? 'Không ghi nhận được thanh toán.');
+      toast.error(getApiErrorMessage(error, 'Không ghi nhận được thanh toán.'));
     } finally {
       setIsSavingSettlement(false);
     }
@@ -583,7 +364,7 @@ export function GroupFinancePage() {
       setSettlementBankInfoFormState(buildInitialSettlementBankInfoForm(updatedBankInfo));
       toast.success('Đã lưu tài khoản nhận tiền cho nhóm này');
     } catch (error) {
-      toast.error(error.response?.data?.error?.message ?? 'Không lưu được tài khoản nhận tiền.');
+      toast.error(getApiErrorMessage(error, 'Không lưu được tài khoản nhận tiền.'));
     } finally {
       setIsSavingSettlementBankInfo(false);
     }
@@ -598,7 +379,7 @@ export function GroupFinancePage() {
       setSettlementBankInfoFormState(buildInitialSettlementBankInfoForm());
       toast.success('Đã xóa tài khoản nhận tiền khỏi nhóm này');
     } catch (error) {
-      toast.error(error.response?.data?.error?.message ?? 'Không xóa được tài khoản nhận tiền.');
+      toast.error(getApiErrorMessage(error, 'Không xóa được tài khoản nhận tiền.'));
     } finally {
       setIsDeletingSettlementBankInfo(false);
     }
@@ -639,7 +420,7 @@ export function GroupFinancePage() {
               void loadFinanceWorkspace()
                 .catch((error) => {
                   setLoadError(
-                    error.response?.data?.error?.message ?? 'Không tải được dữ liệu tài chính.',
+                    getApiErrorMessage(error, 'Không tải được dữ liệu tài chính.'),
                   );
                 })
                 .finally(() => {
@@ -964,420 +745,39 @@ export function GroupFinancePage() {
             </form>
           </SurfaceCard>
 
-          <SurfaceCard
-            title="Các khoản chi"
-            description="Khoản mới nằm trên cùng. Người tạo hoặc Trưởng nhóm có thể sửa, xóa khi cần."
-          >
-            {expenses.length === 0 ? (
-              <EmptyState
-                title="Chưa có khoản chi nào"
-                description="Ghi khoản đầu tiên để SplitBill bắt đầu tính số dư cho nhóm."
-              />
-            ) : (
-              <div className="grid gap-3">
-                {expenses.map((expense) => (
-                  <article
-                    key={expense.id}
-                    className="rounded-xl border border-[#d1fadf] bg-[#f7fdf9] p-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0b7443]">
-                          {categories.find((category) => category.value === expense.category)?.label ||
-                            expense.category}
-                        </p>
-                        <h3 className="mt-2 text-lg font-semibold text-slate-900">{expense.title}</h3>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {expense.paid_by.display_name} - {formatDate(expense.date)}
-                        </p>
-                        {buildParticipantSummary(expense.splits) ? (
-                          <p className="mt-1 text-sm font-medium text-slate-700">
-                            Chia cho: {buildParticipantSummary(expense.splits)}
-                          </p>
-                        ) : null}
-                      </div>
-                      <p className="text-xl font-semibold text-slate-900">
-                        {formatCurrency(expense.amount)}
-                      </p>
-                    </div>
-
-                    {expense.note ? (
-                      <p className="mt-3 text-sm leading-7 text-slate-700">{expense.note}</p>
-                    ) : null}
-
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => handleEditExpense(expense.id)}
-                        className="rounded-xl app-button-secondary"
-                      >
-                        Sửa
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteExpense(expense.id)}
-                        className="rounded-xl app-button-danger"
-                      >
-                        Xóa
-                      </button>
-                      {expense.receipt_url ? (
-                        <a
-                          href={expense.receipt_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-xl border border-[#c7e0f8] bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-[#eef6ff]"
-                        >
-                          Xem hóa đơn
-                        </a>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </SurfaceCard>
+          <GroupExpenseList
+            buildParticipantSummary={buildParticipantSummary}
+            categories={categories}
+            expenses={expenses}
+            formatDate={formatDate}
+            handleDeleteExpense={handleDeleteExpense}
+            handleEditExpense={handleEditExpense}
+          />
         </div>
 
-        <div className="grid gap-6">
-          <SurfaceCard
-            title="Ai đang nợ ai"
-            description="Số dương là được nhận lại, số âm là cần trả thêm."
-          >
-            {balances?.balances?.length ? (
-              <div className="grid gap-3">
-                {balances.balances.map((member) => (
-                  <article
-                    key={member.user_id}
-                    className="rounded-xl border border-slate-200 bg-white p-4"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <UserAvatar
-                          avatarUrl={member.avatar_url}
-                          userId={member.user_id}
-                          groupId={id}
-                          displayName={member.display_name || member.user_id || 'Thành viên'}
-                          size="sm"
-                        />
-                        <div>
-                          <p className="font-semibold text-slate-900">
-                            {member.display_name || member.user_id}
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            Số dư
-                          </p>
-                        </div>
-                      </div>
-                      <p
-                        className={`text-lg font-semibold ${
-                          member.balance > 0
-                            ? 'text-[#0b7443]'
-                            : member.balance < 0
-                              ? 'text-rose-700'
-                              : 'text-slate-700'
-                        }`}
-                      >
-                        {formatCurrency(member.balance)}
-                      </p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : null}
-          </SurfaceCard>
-
-          <SurfaceCard
-            title="Tài khoản nhận chuyển khoản"
-            description="Thông tin này chỉ dùng trong nhóm hiện tại để người khác chuyển tiền khi chốt bill."
-          >
-            <form className="grid gap-4" onSubmit={handleSubmitSettlementBankInfo}>
-              <div className="rounded-xl border border-[#d1fadf] bg-[#f7fdf9] px-4 py-3 text-sm text-slate-700">
-                {settlementBankInfo
-                  ? 'Đã có tài khoản nhận tiền cho nhóm này. Bạn có thể cập nhật hoặc xóa bất cứ lúc nào.'
-                  : 'Chưa có tài khoản nhận tiền cho nhóm này.'}
-              </div>
-
-              <label className="grid gap-2 text-sm font-medium text-slate-700">
-                Ngân hàng
-                <select
-                  aria-label="settlement-bank-id"
-                  required
-                  value={settlementBankInfoFormState.bankId}
-                  onChange={(event) => {
-                    const selectedBank = banks.find((bank) => bank.bank_id === event.target.value);
-                    setSettlementBankInfoFormState((current) => ({
-                      ...current,
-                      bankId: event.target.value,
-                      bankName: selectedBank?.bank_name ?? '',
-                    }));
-                  }}
-                  className="rounded-xl app-input"
-                >
-                  <option value="">Chọn ngân hàng</option>
-                  {banks.map((bank) => (
-                    <option key={bank.bank_id} value={bank.bank_id}>
-                      {bank.bank_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="grid gap-2 text-sm font-medium text-slate-700">
-                Số tài khoản
-                <input
-                  aria-label="settlement-account-number"
-                  type="text"
-                  required
-                  value={settlementBankInfoFormState.accountNumber}
-                  onChange={(event) => {
-                    setSettlementBankInfoFormState((current) => ({
-                      ...current,
-                      accountNumber: event.target.value,
-                    }));
-                  }}
-                  className="rounded-xl app-input font-mono"
-                  placeholder="Ví dụ: 123456789"
-                />
-              </label>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="submit"
-                  disabled={
-                    isSavingSettlementBankInfo ||
-                    !settlementBankInfoFormState.bankId.trim() ||
-                    !/^[0-9]{4,32}$/.test(settlementBankInfoFormState.accountNumber.trim())
-                  }
-                  className="rounded-xl app-button-primary"
-                >
-                  {isSavingSettlementBankInfo ? 'Đang lưu...' : 'Lưu tài khoản nhận tiền'}
-                </button>
-                <button
-                  type="button"
-                  disabled={!settlementBankInfo || isDeletingSettlementBankInfo}
-                  onClick={handleDeleteSettlementBankInfo}
-                  className="rounded-xl app-button-danger"
-                >
-                  {isDeletingSettlementBankInfo
-                    ? 'Đang xóa...'
-                    : 'Xóa tài khoản khỏi nhóm này'}
-                </button>
-              </div>
-            </form>
-          </SurfaceCard>
-
-          <SurfaceCard
-            title="Gợi ý chuyển khoản"
-            description="SplitBill gom nợ thành ít giao dịch nhất có thể."
-          >
-            {suggestions.length === 0 ? (
-              <EmptyState
-                title="Không cần chuyển thêm"
-                description="Số dư của nhóm đang cân bằng."
-              />
-            ) : (
-              <div className="grid gap-3">
-                {suggestions.map((suggestion, index) => {
-                  const recipientBankInfo = suggestion.to.settlement_bank_info;
-
-                  return (
-                    <article
-                      key={`${suggestion.from.user_id}-${suggestion.to.user_id}-${index}`}
-                      className="rounded-xl border border-[#d1fadf] bg-[#f7fdf9] p-4"
-                    >
-                      <p className="text-sm leading-7 text-slate-700">
-                        <span className="font-semibold text-slate-900">{suggestion.from.display_name}</span>{' '}
-                        chuyển cho{' '}
-                        <span className="font-semibold text-slate-900">{suggestion.to.display_name}</span>
-                      </p>
-                      <p className="mt-2 text-lg font-semibold text-[#0b7443]">
-                        {formatCurrency(suggestion.amount)}
-                      </p>
-
-                      {recipientBankInfo && suggestion.to.qr_url ? (
-                        <div className="mt-4 grid gap-3 rounded-xl border border-white bg-white p-3">
-                          <img
-                            src={suggestion.to.qr_url}
-                            alt={`QR chuyển khoản cho ${suggestion.to.display_name}`}
-                            className="mx-auto size-44 rounded-xl border border-[#d1fadf] bg-white object-contain"
-                          />
-                          <div className="grid gap-1 rounded-xl bg-[#f7fdf9] px-3 py-2 text-sm">
-                            <p className="font-semibold text-slate-900">
-                              {recipientBankInfo.bank_name}
-                            </p>
-                            <p className="font-mono text-slate-700">
-                              {recipientBankInfo.account_number}
-                            </p>
-                            {recipientBankInfo.account_name ? (
-                              <p className="font-semibold text-slate-700">
-                                {recipientBankInfo.account_name}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="mt-4 rounded-xl border border-dashed border-[#d1fadf] bg-white px-3 py-2 text-sm text-slate-600">
-                          Người nhận chưa nhập thông tin ngân hàng cho nhóm này.
-                        </p>
-                      )}
-
-                      <button
-                        type="button"
-                        disabled={!canCurrentUserRecordSettlementFrom(suggestion.from.user_id)}
-                        onClick={() => {
-                          if (!canCurrentUserRecordSettlementFrom(suggestion.from.user_id)) {
-                            return;
-                          }
-
-                          setSettlementFormState({
-                            fromUser: suggestion.from.user_id,
-                            toUser: suggestion.to.user_id,
-                            amount: String(suggestion.amount),
-                            note: '',
-                          });
-                        }}
-                        className="mt-3 rounded-xl app-button-secondary"
-                      >
-                        {canCurrentUserRecordSettlementFrom(suggestion.from.user_id)
-                          ? 'Điền vào form thanh toán'
-                          : 'Chỉ người trả nợ mới được ghi nhận'}
-                      </button>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </SurfaceCard>
-
-          <SurfaceCard
-            title="Xác nhận đã trả"
-            description="Chỉ ghi khi tiền đã được chuyển hoặc nhận thật. Bản ghi này không sửa sau khi lưu."
-          >
-            <form className="grid gap-4" onSubmit={handleSubmitSettlement}>
-              <label className="grid gap-2 text-sm font-medium text-slate-700">
-                Người trả nợ
-                <select
-                  aria-label="settlement-from-user"
-                  value={settlementFormState.fromUser}
-                  disabled={!isGroupLeader}
-                  onChange={(event) =>
-                    setSettlementFormState((current) => ({
-                      ...current,
-                      fromUser: event.target.value,
-                    }))
-                  }
-                  className="rounded-xl app-input"
-                >
-                  <option value="">Chọn người trả nợ</option>
-                  {activeMembers.map((member) => (
-                    <option key={member.user_id} value={member.user_id}>
-                      {member.display_name || member.user_id}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="grid gap-2 text-sm font-medium text-slate-700">
-                Người nhận thanh toán
-                <select
-                  aria-label="settlement-to-user"
-                  value={settlementFormState.toUser}
-                  onChange={(event) =>
-                    setSettlementFormState((current) => ({
-                      ...current,
-                      toUser: event.target.value,
-                    }))
-                  }
-                  className="rounded-xl app-input"
-                >
-                  <option value="">Chọn người nhận thanh toán</option>
-                  {activeMembers.map((member) => (
-                    <option key={member.user_id} value={member.user_id}>
-                      {member.display_name || member.user_id}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="grid gap-2 text-sm font-medium text-slate-700">
-                Số tiền thanh toán
-                <input
-                  aria-label="settlement-amount"
-                  type="number"
-                  min="1"
-                  value={settlementFormState.amount}
-                  onChange={(event) =>
-                    setSettlementFormState((current) => ({
-                      ...current,
-                      amount: event.target.value,
-                    }))
-                  }
-                  className="rounded-xl app-input"
-                />
-              </label>
-
-              <label className="grid gap-2 text-sm font-medium text-slate-700">
-                Ghi chú
-                <textarea
-                  value={settlementFormState.note}
-                  onChange={(event) =>
-                    setSettlementFormState((current) => ({
-                      ...current,
-                      note: event.target.value,
-                    }))
-                  }
-                  className="min-h-24 rounded-xl app-input"
-                  placeholder="Ví dụ: Đã chuyển khoản qua ngân hàng"
-                />
-              </label>
-
-              <button
-                type="submit"
-                disabled={isSavingSettlement || !isSettlementReady}
-                className="rounded-xl app-button-primary"
-              >
-                {isSavingSettlement ? 'Đang ghi nhận...' : 'Xác nhận thanh toán'}
-              </button>
-            </form>
-          </SurfaceCard>
-
-          <SurfaceCard
-            title="Lịch sử trả nợ"
-            description="Các lần thành viên đã xác nhận thanh toán cho nhau."
-          >
-            {settlements.length === 0 ? (
-              <EmptyState
-                title="Chưa có lần trả nợ nào"
-                description="Khi có người xác nhận đã trả, lịch sử sẽ xuất hiện ở đây."
-              />
-            ) : (
-              <div className="grid gap-3">
-                {settlements.map((settlement) => (
-                  <article
-                    key={settlement.id}
-                    className="rounded-xl border border-slate-200 bg-white p-4"
-                  >
-                    <p className="font-semibold text-slate-900">
-                      {settlement.from_user.display_name}
-                      {' âž” '}
-                      {settlement.to_user.display_name}
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-[#0b7443]">
-                      {formatCurrency(settlement.amount)}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {formatDate(settlement.settled_at)} - ghi bởi{' '}
-                      {settlement.recorded_by.display_name}
-                    </p>
-                    {settlement.note ? (
-                      <p className="mt-2 text-sm leading-7 text-slate-700">{settlement.note}</p>
-                    ) : null}
-                  </article>
-                ))}
-              </div>
-            )}
-          </SurfaceCard>
-        </div>
+        <GroupFinanceSidebar
+          activeMembers={activeMembers}
+          balances={balances}
+          banks={banks}
+          canCurrentUserRecordSettlementFrom={canCurrentUserRecordSettlementFrom}
+          formatDate={formatDate}
+          groupId={id}
+          handleDeleteSettlementBankInfo={handleDeleteSettlementBankInfo}
+          handleSubmitSettlement={handleSubmitSettlement}
+          handleSubmitSettlementBankInfo={handleSubmitSettlementBankInfo}
+          isDeletingSettlementBankInfo={isDeletingSettlementBankInfo}
+          isGroupLeader={isGroupLeader}
+          isSavingSettlement={isSavingSettlement}
+          isSavingSettlementBankInfo={isSavingSettlementBankInfo}
+          isSettlementReady={isSettlementReady}
+          setSettlementBankInfoFormState={setSettlementBankInfoFormState}
+          setSettlementFormState={setSettlementFormState}
+          settlementBankInfo={settlementBankInfo}
+          settlementBankInfoFormState={settlementBankInfoFormState}
+          settlementFormState={settlementFormState}
+          settlements={settlements}
+          suggestions={suggestions}
+        />
       </div>
     </PageContainer>
   );

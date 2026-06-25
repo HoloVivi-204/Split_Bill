@@ -1,0 +1,9 @@
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL = 'postgresql://splitbill:splitbill@localhost:5432/splitbill_test';
+process.env.JWT_ACCESS_SECRET = 'test-access-secret-value-32-chars';
+process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-value-32-chars';
+process.env.COOKIE_SECRET = 'test-cookie-secret';
+process.env.FRONTEND_URL = 'http://localhost:5173';
+process.env.CLOUDINARY_CLOUD_NAME = 'splitbill-test';
+process.env.CLOUDINARY_API_KEY = 'splitbill-test';
+process.env.CLOUDINARY_API_SECRET = 'splitbill-test';

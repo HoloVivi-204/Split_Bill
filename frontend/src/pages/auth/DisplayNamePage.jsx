@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { updateDisplayName } from '../../api/auth';
 import { Spinner } from '../../components/common/Spinner';
 import { useAuthStore } from '../../stores/authStore';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 export function DisplayNamePage() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export function DisplayNamePage() {
       toast.success('Đã lưu tên hiển thị.');
       navigate('/groups', { replace: true });
     } catch (error) {
-      const message = error.response?.data?.error?.message ?? 'Không thể cập nhật tên hiển thị.';
+      const message = getApiErrorMessage(error, 'Không thể cập nhật tên hiển thị.');
       setErrorMessage(message);
       toast.error(message);
     } finally {

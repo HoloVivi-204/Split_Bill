@@ -6,12 +6,13 @@ import {
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
-} from '../../api/groups';
+} from '../../api/notifications';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { PageContainer } from '../../components/common/PageContainer';
 import { SurfaceCard } from '../../components/common/SurfaceCard';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 function buildNotificationHref(notification) {
   if (!notification.group_id) {
@@ -94,7 +95,7 @@ export function NotificationsPage() {
         });
       } catch (error) {
         if (!cancelled) {
-          setLoadError(error.response?.data?.error?.message ?? 'Không thể tải danh sách thông báo.');
+          setLoadError(getApiErrorMessage(error, 'Không thể tải danh sách thông báo.'));
         }
       } finally {
         if (!cancelled) {

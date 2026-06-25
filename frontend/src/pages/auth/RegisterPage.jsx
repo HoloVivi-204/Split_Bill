@@ -7,6 +7,7 @@ import { register } from '../../api/auth';
 import { PasswordInput } from '../../components/common/PasswordInput';
 import { Spinner } from '../../components/common/Spinner';
 import { useAuthStore } from '../../stores/authStore';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -64,7 +65,7 @@ export function RegisterPage() {
       });
       toast.success('Tài khoản đã được tạo.');
     } catch (error) {
-      const message = error.response?.data?.error?.message ?? 'Không thể tạo tài khoản.';
+      const message = getApiErrorMessage(error, 'Không thể tạo tài khoản.');
       setErrorMessage(message);
       toast.error(message);
     } finally {

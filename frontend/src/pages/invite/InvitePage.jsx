@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 
 import { getInvitationPreview, joinInvitation } from '../../api/invitations';
 import { useAuthStore } from '../../stores/authStore';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 function InvitePreviewSkeleton() {
   return (
@@ -45,7 +46,7 @@ export function InvitePage() {
           return;
         }
 
-        const message = error.response?.data?.error?.message ?? 'Không tải được lời mời. Vui lòng thử lại.';
+        const message = getApiErrorMessage(error, 'Không tải được lời mời. Vui lòng thử lại.');
         setLoadError(message);
       } finally {
         if (isMounted) {
@@ -78,7 +79,7 @@ export function InvitePage() {
       toast.success(data.message ?? 'Tham gia nhóm thành công!');
       navigate('/groups', { replace: true });
     } catch (error) {
-      const message = error.response?.data?.error?.message ?? 'Không thể tham gia nhóm lúc này.';
+      const message = getApiErrorMessage(error, 'Không thể tham gia nhóm lúc này.');
       toast.error(message);
     } finally {
       setIsJoining(false);

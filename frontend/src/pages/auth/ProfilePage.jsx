@@ -15,6 +15,7 @@ import { PageContainer } from '../../components/common/PageContainer';
 import { SurfaceCard } from '../../components/common/SurfaceCard';
 import { UserAvatar } from '../../components/common/UserAvatar';
 import { useAuthStore } from '../../stores/authStore';
+import { getApiErrorMessage } from '../../utils/apiError';
 import { formatCurrency } from '../../utils/formatCurrency';
 
 function formatJoinedDate(value) {
@@ -62,7 +63,7 @@ export function ProfilePage() {
         updateUser(nextProfile);
       } catch (error) {
         const message =
-          error.response?.data?.error?.message ?? 'Không thể tải thông tin hồ sơ.';
+          getApiErrorMessage(error, 'Không thể tải thông tin hồ sơ.');
         setLoadError(message);
         toast.error(message);
       } finally {
@@ -106,7 +107,7 @@ export function ProfilePage() {
       toast.success('Đã cập nhật hồ sơ.');
     } catch (error) {
       const message =
-        error.response?.data?.error?.message ?? 'Không thể cập nhật hồ sơ.';
+        getApiErrorMessage(error, 'Không thể cập nhật hồ sơ.');
       toast.error(message);
     } finally {
       setIsSavingProfile(false);
@@ -134,7 +135,7 @@ export function ProfilePage() {
       toast.success('Đã cập nhật ảnh đại diện.');
     } catch (error) {
       const message =
-        error.response?.data?.error?.message ?? 'Không thể tải ảnh đại diện.';
+        getApiErrorMessage(error, 'Không thể tải ảnh đại diện.');
       toast.error(message);
     } finally {
       event.target.value = '';
@@ -157,7 +158,7 @@ export function ProfilePage() {
       toast.success('Đã xoá ảnh đại diện.');
     } catch (error) {
       const message =
-        error.response?.data?.error?.message ?? 'Không thể xoá ảnh đại diện.';
+        getApiErrorMessage(error, 'Không thể xoá ảnh đại diện.');
       toast.error(message);
     } finally {
       setIsDeletingAvatar(false);
@@ -182,7 +183,7 @@ export function ProfilePage() {
       navigate('/login', { replace: true });
     } catch (error) {
       const message =
-        error.response?.data?.error?.message ?? 'Không thể xoá tài khoản lúc này.';
+        getApiErrorMessage(error, 'Không thể xoá tài khoản lúc này.');
       toast.error(message);
     } finally {
       setIsDeletingAccount(false);

@@ -11,6 +11,7 @@ import { ErrorState } from '../../components/common/ErrorState';
 import { PageContainer } from '../../components/common/PageContainer';
 import { SurfaceCard } from '../../components/common/SurfaceCard';
 import { useAuthStore } from '../../stores/authStore';
+import { getApiErrorMessage } from '../../utils/apiError';
 import {
   applyAppearanceMode,
   getStoredAppearanceMode,
@@ -74,7 +75,7 @@ export function AccountSettingsPage() {
         updateUser(nextProfile);
       } catch (error) {
         const message =
-          error.response?.data?.error?.message ?? 'Không thể tải cài đặt tài khoản.';
+          getApiErrorMessage(error, 'Không thể tải cài đặt tài khoản.');
         setLoadError(message);
         toast.error(message);
       } finally {
@@ -110,7 +111,7 @@ export function AccountSettingsPage() {
       toast.success('Đã đổi mật khẩu.');
     } catch (error) {
       const message =
-        error.response?.data?.error?.message ?? 'Không thể đổi mật khẩu.';
+        getApiErrorMessage(error, 'Không thể đổi mật khẩu.');
       toast.error(message);
     } finally {
       setIsChangingPassword(false);
@@ -139,7 +140,7 @@ export function AccountSettingsPage() {
       toast.success('Đã tạo mã khôi phục mới.');
     } catch (error) {
       const message =
-        error.response?.data?.error?.message ?? 'Không thể tạo lại mã khôi phục.';
+        getApiErrorMessage(error, 'Không thể tạo lại mã khôi phục.');
       toast.error(message);
     } finally {
       setIsRegeneratingCodes(false);

@@ -1,17 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { listGroups } from '../../api/groups';
+import { listGroups } from '../../api/group-core';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { PageContainer } from '../../components/common/PageContainer';
 import { SurfaceCard } from '../../components/common/SurfaceCard';
-
-const roleLabels = {
-  leader: 'Trưởng nhóm',
-  secretary: 'Thư ký',
-  member: 'Thành viên',
-};
+import { getRoleLabel } from '../../constants/groupRoles';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 export function FundHubPage() {
   const [groups, setGroups] = useState([]);
@@ -33,7 +29,7 @@ export function FundHubPage() {
         }
       } catch (error) {
         if (!cancelled) {
-          setLoadError(error.response?.data?.error?.message ?? 'Không thể tải danh sách nhóm.');
+          setLoadError(getApiErrorMessage(error, 'Không thể tải danh sách nhóm.'));
         }
       } finally {
         if (!cancelled) {
@@ -91,7 +87,7 @@ export function FundHubPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0b7443]">
-                      {roleLabels[group.my_role] ?? group.my_role}
+                      {getRoleLabel(group.my_role)}
                     </p>
                     <h2 className="mt-3 text-xl font-semibold tracking-tight text-slate-900">
                       {group.name}

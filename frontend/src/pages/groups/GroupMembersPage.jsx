@@ -11,20 +11,16 @@ import {
   requestLeaveGroup,
   transferLeader,
   updateGroupMemberRole,
-} from '../../api/groups';
+} from '../../api/group-core';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { KpiTile } from '../../components/common/KpiTile';
 import { PageContainer } from '../../components/common/PageContainer';
 import { SurfaceCard } from '../../components/common/SurfaceCard';
 import { UserAvatar } from '../../components/common/UserAvatar';
+import { getRoleLabel } from '../../constants/groupRoles';
 import { useAuthStore } from '../../stores/authStore';
-
-const roleLabels = {
-  leader: 'Trưởng nhóm',
-  secretary: 'Thư ký',
-  member: 'Thành viên',
-};
+import { getApiErrorMessage } from '../../utils/apiError';
 
 const statusLabels = {
   active: 'Đang hoạt động',
@@ -102,7 +98,7 @@ export function GroupMembersPage() {
         );
       } catch (error) {
         if (!cancelled) {
-          const message = error.response?.data?.error?.message ?? 'Không thể tải danh sách thành viên.';
+          const message = getApiErrorMessage(error, 'Không thể tải danh sách thành viên.');
           setLoadError(message);
         }
       } finally {
@@ -173,7 +169,7 @@ export function GroupMembersPage() {
       );
       toast.success(data.message ?? 'Đã cập nhật vai trò');
     } catch (error) {
-      const message = error.response?.data?.error?.message ?? 'Không thể cập nhật vai trò lúc này.';
+      const message = getApiErrorMessage(error, 'Không thể cập nhật vai trò lúc này.');
       setRoleDrafts((currentDrafts) => ({
         ...currentDrafts,
         [member.user_id]: member.role,
@@ -201,7 +197,7 @@ export function GroupMembersPage() {
       );
       toast.success(data.message ?? 'Đã mời thành viên ra khỏi nhóm');
     } catch (error) {
-      const message = error.response?.data?.error?.message ?? 'Không thể xóa thành viên lúc này.';
+      const message = getApiErrorMessage(error, 'Không thể xóa thành viên lúc này.');
       toast.error(message);
     } finally {
       setKickingMemberId('');
@@ -233,7 +229,7 @@ export function GroupMembersPage() {
         navigate('/groups');
       }
     } catch (error) {
-      const message = error.response?.data?.error?.message ?? 'Không thể gửi yêu cầu rời nhóm lúc này.';
+      const message = getApiErrorMessage(error, 'Không thể gửi yêu cầu rời nhóm lúc này.');
       setLeaveFormError(message);
       toast.error(message);
     } finally {
@@ -292,7 +288,7 @@ export function GroupMembersPage() {
       setLeaderTransferNotice('Bạn vẫn ở lại nhóm với vai trò thành viên.');
       toast.success(data.message ?? 'Đã chuyển trưởng nhóm');
     } catch (error) {
-      const message = error.response?.data?.error?.message ?? 'Không thể chuyển trưởng nhóm lúc này.';
+      const message = getApiErrorMessage(error, 'Không thể chuyển trưởng nhóm lúc này.');
       setLeaderTransferError(message);
       toast.error(message);
     } finally {
@@ -335,7 +331,7 @@ export function GroupMembersPage() {
 
       toast.success(data.message ?? 'Đã xử lý yêu cầu rời nhóm');
     } catch (error) {
-      const message = error.response?.data?.error?.message ?? 'Không thể xử lý yêu cầu lúc này.';
+      const message = getApiErrorMessage(error, 'Không thể xử lý yêu cầu lúc này.');
       toast.error(message);
     } finally {
       setProcessingLeaveRequestId('');
@@ -375,7 +371,7 @@ export function GroupMembersPage() {
             <KpiTile label="Nhóm hiện tại" value={group?.name || 'Chưa rõ'} hint={groupNameHint} />
             <KpiTile label="Thành viên đang hoạt động" value={String(activeMembersCount)} hint="Danh sách hiển thị theo vai trò và trạng thái hiện tại." />
             <KpiTile label="Đợt quỹ đang mở" value={String(group?.active_campaigns_count ?? 0)} hint="Số đợt thu quỹ đang hoạt động." />
-            <KpiTile label="QR đang bật" value={group?.has_qr ? 'Có' : 'Chưa'} hint={`Vai trò của bạn: ${roleLabels[group?.my_role] ?? 'Thành viên'}`} />
+            <KpiTile label="QR đang bật" value={group?.has_qr ? 'Có' : 'Chưa'} hint={`Vai trò của bạn: ${getRoleLabel(group?.my_role) ?? 'Thành viên'}`} />
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
@@ -389,7 +385,7 @@ export function GroupMembersPage() {
                     <span className="font-semibold text-slate-900">Tiền tệ:</span> {group?.currency || 'VND'}
                   </p>
                   <p className="mt-2">
-                    <span className="font-semibold text-slate-900">Vai trò của bạn:</span> {roleLabels[group?.my_role] ?? 'Thành viên'}
+                    <span className="font-semibold text-slate-900">Vai trò của bạn:</span> {getRoleLabel(group?.my_role) ?? 'Thành viên'}
                   </p>
                   <p className="mt-2">
                     <span className="font-semibold text-slate-900">Số thành viên:</span> {group?.member_count ?? members.length}
@@ -437,7 +433,7 @@ export function GroupMembersPage() {
                         <option value="">Chọn thành viên đang hoạt động</option>
                         {activeTransferOptions.map((member) => (
                           <option key={member.user_id} value={member.user_id}>
-                            {member.display_name || member.user_id} - {roleLabels[member.role] ?? member.role}
+                            {member.display_name || member.user_id} - {getRoleLabel(member.role)}
                           </option>
                         ))}
                       </select>
@@ -492,7 +488,7 @@ export function GroupMembersPage() {
                           <option value="">Chọn thành viên đang hoạt động</option>
                           {activeTransferOptions.map((member) => (
                             <option key={member.user_id} value={member.user_id}>
-                              {member.display_name || member.user_id} - {roleLabels[member.role] ?? member.role}
+                              {member.display_name || member.user_id} - {getRoleLabel(member.role)}
                             </option>
                           ))}
                         </select>
@@ -659,7 +655,7 @@ export function GroupMembersPage() {
                                 </p>
                                 <div className="mt-2 flex flex-wrap gap-2 text-xs uppercase tracking-[0.16em]">
                                   <span className="app-badge app-badge--neutral">
-                                    {roleLabels[member.role] ?? member.role}
+                                    {getRoleLabel(member.role)}
                                   </span>
                                   <span className="app-badge app-badge--neutral">
                                     {statusLabels[member.status] ?? member.status}
